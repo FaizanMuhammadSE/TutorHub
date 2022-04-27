@@ -10,6 +10,7 @@ import {
   StyleSheet,
   ScrollView,
   Button,
+  Modal,
   Alert,
 } from 'react-native';
 import {

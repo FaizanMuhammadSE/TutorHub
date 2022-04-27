@@ -13,6 +13,7 @@ import MainNavigtion from './src/navigation/mainPages/index.js';
 import {name as appName} from './app.json';
 import TimeSlots from './src/testt/TimeSlots';
 import Practice from './components/trianglePractice/index';
+import ModalTest from './src/testt/ModalTest';
 
 //AppRegistry.registerComponent(appName, () => BottomNavigation);
 //AppRegistry.registerComponent(appName, () => NavigationApp);
@@ -20,3 +21,5 @@ import Practice from './components/trianglePractice/index';
 AppRegistry.registerComponent(appName, () => MainNavigtion);
 //AppRegistry.registerComponent(appName, () => Practice);
 //AppRegistry.registerComponent(appName, () => TimeSlots);
+//AppRegistry.registerComponent(appName, () => TimeSlots);
+//AppRegistry.registerComponent(appName, () => ModalTest);
