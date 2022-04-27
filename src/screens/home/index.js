@@ -20,6 +20,7 @@ import UserAvatar from 'react-native-user-avatar';
 import {Card} from 'react-native-shadow-cards';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
+import storage from '@react-native-firebase/storage';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
 import * as RNFS from 'react-native-fs';
 const fileHandler = require('fs');
@@ -32,6 +33,14 @@ const index = ({navigation}) => {
   const Height = Dimensions.get('screen').height;
   const Width = Dimensions.get('screen').width;
 
+  // const [filePath, setFilePath] = useState({
+  //   assets: [
+  //     {
+  //       uri: '',
+  //     },
+  //   ],
+  // });
+  const [filePath, setFilePath] = useState('');
   const setUserToLocalStorage = userId => {
     // fileHandler.readFile('../res/local_storage', (err, data) => {
     //   if (err) console.log('Error arise while writing user to local DB', err);
@@ -61,14 +70,6 @@ const index = ({navigation}) => {
         ),
       );
   };
-
-  const [filePath, setFilePath] = useState({
-    assets: [
-      {
-        uri: '../../res/images/no-image.jpeg',
-      },
-    ],
-  });
 
   const requestCameraPermission = async () => {
     if (Platform.OS === 'android') {
@@ -138,7 +139,7 @@ const index = ({navigation}) => {
           alert(response.errorMessage);
           return;
         }
-        setFilePath(response);
+        setFilePath(response.assets[0].uri);
       });
     }
   };
@@ -166,12 +167,36 @@ const index = ({navigation}) => {
         alert(response.errorMessage);
         return;
       }
-      //console.log(response.assets[0].uri);
-      setFilePath(response);
-    });
+      console.log('File path is this: ', response);
+      setFilePath(response.assets[0].uri);
+      // console.log('Now file Path is: ', filePath.assets[0].uri);
+      // const fileName = '/banana'; //`${auth().currentUser.uid}/dp`;
+      // const reference = storage().ref(fileName);
+      // console.log(fileName);
+      // // path tdo existing file on filesystem
+      // //const pathToFile = `${filePath.assets[0].uri}/dp.png`;
+      // // uploads file
+      // console.log('We are going to upload this file: ', filePath.assets[0].uri);
+      // const task = reference.putFile(filePath.assets[0].uri);
+      // task.on('state_changed', taskSnapshot => {
+      //   console.log(
+      //     `${taskSnapshot.bytesTransferred} transferred out of ${taskSnapshot.totalBytes}`,
+      //   );
+      // });
+      // task
+      //   .then(() => {
+      //     console.log('Image uploaded to the bucket!');
+      //   })
+      //   .catch(error => console.log('image not uploaded to storage', error));
+    }).catch(error => console.log('Image library promise rejected'));
   };
 
+  const generateId = () => {
+    //in-progress
+    return auth().currentUser.uid;
+  };
   useEffect(() => {
+    console.log('useEffect one', filePath);
     // RNFS.readFile('../../res/local_storage.txt')
     //   .then(data => {
     //     id = auth().currentUser.uid;
@@ -190,10 +215,42 @@ const index = ({navigation}) => {
     // RNFS.readDir(RNFS.DocumentDirectoryPath).then(files => {
     //   files.forEach(item => console.log(item));
     // });
-    RNFS.exists('../../res/local_storage.txt').then(status =>
-      console.log(status),
-    );
+    //
+    storage()
+      .ref(generateId() + '/dp')
+      .getDownloadURL()
+      .then(url => {
+        console.log('URL is:', url);
+        setFilePath(url); //setting this state will run useEffect associated with filePath and will upload image uselessly but thats fine
+      })
+      .catch(err => console.log('Err WHILE getting url:', err.code));
+    //
+    // RNFS.exists('../../res/local_storage.txt').then(status =>
+    //   console.log(status),
+    //);
   }, []);
+  //it will run on componentDidMount and whenever filePath is updated
+  useEffect(() => {
+    console.log('useEffect two', filePath);
+    //if filePath is empty then no need to upload on firebase, return from this useEffect right now
+    if (filePath != '' && filePath.includes('http') == false) {
+      console.log('Runnig filePath useEffect');
+      const fileName = generateId() + '/' + 'dp';
+      const reference = storage().ref(fileName);
+      console.log('Checking filePath in useEffect:', filePath);
+      const task = reference.putFile(filePath);
+      task.on('state_changed', taskSnapshot => {
+        console.log(
+          `${taskSnapshot.bytesTransferred} transferred out of ${taskSnapshot.totalBytes}`,
+        );
+      });
+      task
+        .then(() => {
+          console.log('Image uploaded to the bucket!');
+        })
+        .catch(error => console.log('image not uploaded to storage', error));
+    }
+  }, [filePath]);
   return (
     <View style={styles.container}>
       <ScrollView>
@@ -256,7 +313,11 @@ const index = ({navigation}) => {
               <TouchableOpacity>
                 <Image
                   borderRadius={50}
-                  source={{uri: filePath.assets[0].uri}}
+                  source={
+                    filePath.length == 0
+                      ? require('../../res/images/no-image.jpeg')
+                      : {uri: filePath}
+                  }
                   style={{height: 100, width: 100}}
                 />
               </TouchableOpacity>

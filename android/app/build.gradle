@@ -201,6 +201,8 @@ dependencies {
     ////
     //this line is added for react-native file system
     implementation project(':react-native-fs')
+    //this line is added by for react-native storage
+    implementation project(path: ":@react-native-firebase_storage")
     debugImplementation("com.facebook.flipper:flipper:${FLIPPER_VERSION}") {
         exclude group:'com.facebook.fbjni'
     }

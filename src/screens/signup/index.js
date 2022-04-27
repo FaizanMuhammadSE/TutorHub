@@ -128,6 +128,7 @@ const Signup = ({navigation}) => {
     //     },
     //   );
     // });
+
     RNFS.readFile('../../res/local_storage')
       .then(data => {
         var storage = JSON.parse(data.toString());

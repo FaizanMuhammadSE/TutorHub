@@ -12,9 +12,11 @@ import ModalApp from './components/ModalsPractice/Modal';
 import MainNavigtion from './src/navigation/mainPages/index.js';
 import {name as appName} from './app.json';
 import TimeSlots from './src/testt/TimeSlots';
+import Practice from './components/trianglePractice/index';
 
 //AppRegistry.registerComponent(appName, () => BottomNavigation);
 //AppRegistry.registerComponent(appName, () => NavigationApp);
 
-//AppRegistry.registerComponent(appName, () => MainNavigtion);
-AppRegistry.registerComponent(appName, () => TimeSlots);
+AppRegistry.registerComponent(appName, () => MainNavigtion);
+//AppRegistry.registerComponent(appName, () => Practice);
+//AppRegistry.registerComponent(appName, () => TimeSlots);
