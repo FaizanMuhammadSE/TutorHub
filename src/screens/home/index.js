@@ -5,6 +5,8 @@ import {
   Dimensions,
   Text,
   Image,
+  TextInput,
+  Button,
   TouchableOpacity,
   TouchableHighlight,
   ScrollView,
@@ -12,6 +14,8 @@ import {
   Platform,
   PermissionsAndroid,
 } from 'react-native';
+import Modal from 'react-native-modal';
+import Dialog from 'react-native-dialog';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import AntDesignIcon from 'react-native-vector-icons/AntDesign';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -31,7 +35,9 @@ import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
 const index = ({navigation}) => {
   const Height = Dimensions.get('screen').height;
   const Width = Dimensions.get('screen').width;
-
+  const [showModal, setShowModal] = useState(false);
+  const [logout, setLogout] = useState(false);
+  const [name, setName] = useState(false);
   const setUserToLocalStorage = userId => {
     // fileHandler.readFile('../res/local_storage', (err, data) => {
     //   if (err) console.log('Error arise while writing user to local DB', err);
@@ -202,18 +208,23 @@ const index = ({navigation}) => {
           <View style={styles.notifyButton}>
             <View style={{flex: 1, flexDirection: 'row'}}>
               <TouchableOpacity
-                onPress={() => {
-                  const signout = async () => {
-                    //this code is working perfectly
-                    console.log('current user: ', auth().currentUser);
-                    await auth().signOut(); //it will remove current user present in auth, either that user was logged in through Google or Email/Password
-                    console.log('Current User Status: ', auth().currentUser);
-                    await GoogleSignin.signOut(); //If we will not signOut from there then next time, it will automatically select already selected user and will not give pop-up
-                    console.log('Signout from google also now agian login');
-                  };
-                  signout();
-                  navigation.getParent().navigate('Authentication'); //after clicking logout our cached user or auth().currentuser will be null and we will be navigated to first screen
-                }}>
+                onPress={() =>
+                  //navigation.getParent().navigate('Authentication')
+                  setLogout(true)
+                }>
+//put this code in the onPress of ok                  
+//                 onPress={() => {
+//                   const signout = async () => {
+//                     //this code is working perfectly
+//                     console.log('current user: ', auth().currentUser);
+//                     await auth().signOut(); //it will remove current user present in auth, either that user was logged in through Google or Email/Password
+//                     console.log('Current User Status: ', auth().currentUser);
+//                     await GoogleSignin.signOut(); //If we will not signOut from there then next time, it will automatically select already selected user and will not give pop-up
+//                     console.log('Signout from google also now agian login');
+//                   };
+//                   signout();
+//                   navigation.getParent().navigate('Authentication'); //after clicking logout our cached user or auth().currentuser will be null and we will be navigated to first screen
+//                 }}>
                 <AntDesignIcon size={30} color="teal" name="logout" />
               </TouchableOpacity>
             </View>
@@ -292,7 +303,13 @@ const index = ({navigation}) => {
                 <Text numberOfLines={1} style={{marginHorizontal: 15}}>
                   Faizan Muhammad
                 </Text>
-                <Icon style={{left: 0}} size={24} color="teal" name="eraser" />
+                <Icon
+                  style={{left: 0}}
+                  size={24}
+                  color="teal"
+                  name="eraser"
+                  onPress={() => setName(true)}
+                />
               </Card>
             </View>
           </TouchableOpacity>
@@ -338,6 +355,89 @@ const index = ({navigation}) => {
               <Text style={{color: 'white', fontSize: 16}}>Account</Text>
             </View>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={{
+              marginTop: '4%',
+              backgroundColor: '#5DADE2',
+              marginHorizontal: '20%',
+              width: '60%',
+            }}
+            onPress={() => setShowModal(true)}>
+            <Text style={{margin: '8%', textAlign: 'center'}}>
+              Set Location
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <View>
+          <Modal
+            animationType={'slide'}
+            transparent={false}
+            visible={showModal}
+            onRequestClose={() => {
+              //when click on back in android
+              setShowModal(!showModal);
+            }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+              }}>
+              <Text style={{marginTop: 5}}>Your location</Text>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#3498DB',
+                  height: 30,
+                  width: 100,
+                  borderRadius: 30,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}>
+                <View>
+                  <Text
+                    style={{
+                      color: 'white',
+                      fontSize: 12,
+                      fontWeight: 'normal',
+                    }}>
+                    Add Location
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+            <View
+              style={{
+                flex: 280,
+                backgroundColor: 'gray',
+                marginTop: '2%',
+              }}></View>
+          </Modal>
+        </View>
+        <View>
+          <Dialog.Container visible={logout}>
+            <Dialog.Description>Do you want to logout?</Dialog.Description>
+            <Dialog.Button label="Cancel" onPress={() => setLogout(false)} />
+            <Dialog.Button label="Logout" onPress={() => {setLogout(false);
+                  const signout = async () => {
+                    //this code is working perfectly
+                    console.log('current user: ', auth().currentUser);
+                    await auth().signOut(); //it will remove current user present in auth, either that user was logged in through Google or Email/Password
+                    console.log('Current User Status: ', auth().currentUser);
+                    await GoogleSignin.signOut(); //If we will not signOut from there then next time, it will automatically select already selected user and will not give pop-up
+                    console.log('Signout from google also now agian login');
+                  };
+                  signout();
+                  navigation.getParent().navigate('Authentication'); //after clicking logout our cached user or auth().currentuser will be null and we will be navigated to first screen
+                                                         }} />
+          </Dialog.Container>
+        </View>
+        <View>
+          <Dialog.Container visible={name}>
+            <Dialog.Description>Enter your name</Dialog.Description>
+            <Dialog.Input></Dialog.Input>
+            <Dialog.Button label="Cancel" onPress={() => setName(false)} />
+            <Dialog.Button label="Set" onPress={() => setName(false)} />
+          </Dialog.Container>
         </View>
       </ScrollView>
     </View>

@@ -6,6 +6,8 @@ import {
   Text,
   TextInput,
   KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
   View,
   StyleSheet,
   Button,
@@ -155,10 +157,10 @@ const Login = ({navigation}) => {
         setShowAlert(true);
       });
   };
-
+  
   return (
     <>
-      <View style={styles.container}>
+      <KeyboardAvoidingView style={styles.container}>
         <View style={styles.triangleContainer}></View>
         <View style={styles.formContainer}>
           <View style={styles.textInput}>
@@ -267,7 +269,7 @@ const Login = ({navigation}) => {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
       <AwesomeAlert
         show={showAlert}
         //showProgress={false}
