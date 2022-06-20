@@ -24,7 +24,10 @@ import {
 import auth from '@react-native-firebase/auth';
 import AwesomeAlert from 'react-native-awesome-alerts';
 import firestore from '@react-native-firebase/firestore';
-import {GoogleSignin} from '@react-native-google-signin/google-signin';
+import {
+  GoogleSignin,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
 
 const Login = ({navigation}) => {
   //all states are defined here
@@ -58,7 +61,8 @@ const Login = ({navigation}) => {
       .signInWithEmailAndPassword(email, password)
       .then(user => {
         //setUser(user);
-        console.log('User details: ', user);
+        //console.log('User data through auth: ', auth().currentUser);
+        //console.log('User details: ', user);
         if (user.user.emailVerified == false) {
           setAlertText(
             "Dear User, you have not verified your email yet, sorry we can't proceed you further, without verifying your email, if you entered wrong email address then we'll suggest you to create account with your own valid email, or click on resend button to get verification email again, Regards! TutorHub Team",
@@ -66,7 +70,13 @@ const Login = ({navigation}) => {
           setResendRequest(true); //it will just enabled when user is valid but email is not verified
           setShowAlert(true);
         } else {
-          navigation.navigate('Main');
+          navigation.navigate('Main', {
+            screen: 'Home',
+            params: {
+              userName: 'Anonymous',
+              picture: './../../res/images/no-image.jpg',
+            },
+          });
         }
       })
       .catch(error => {
@@ -83,54 +93,52 @@ const Login = ({navigation}) => {
   };
 
   async function onGoogleButtonPress() {
-    // Get the users ID token
-    const googleAccountDetails = await GoogleSignin.signIn();
+    try {
+      await GoogleSignin.hasPlayServices(); //checking either user has google play services installed if not then user will be prompted with a modal by default
+      // Get the users ID token
+      const googleAccountDetails = await GoogleSignin.signIn();
+      //console.log('here are your user acc0nt details: ', googleAccountDetails);
 
-    // Create a Google credential with the token
-    const googleCredential = auth.GoogleAuthProvider.credential(
-      googleAccountDetails.idToken,
-    );
-    const status = auth().isSignInWithEmailLink(googleAccountDetails.email);
-    if (status == true) {
-      //means user have a valid registered account
-      // Sign-in the user with the credential
-      try {
-        const user = await auth().signInWithCredential(googleCredential);
-        //promise resolved succesfully
-        console.log('Signed in with Google!', user);
-        // console.log('value', user.isNewUser);
-        // if (user.additionalUserInfo.isNewUser == true) {
-        //   console.log('expected line');
-        //   //it means this user is not new to our app
-        //   setAlertText(
-        //     'Nobody is registered with this email, you should try to register yourself on this app with this email, but do not worry we have done your registeration.',
-        //   );
-        //   setShowAlert(true);
-
-        //   //saving this user status in database
-        //   firestore() //error of this query will also catched by catch statement
-        //     .collection('first_visit')
-        //     .add({id: user.user.uid, status: true})
-        //     .catch(error =>
-        //       console.log(
-        //         'Error arise while setting first visit flag: ',
-        //         error,
-        //       ),
-        //     );
-        // }
-        navigation.navigate('Main');
-      } catch (error) {
-        //promise rejected
-        setAlertText(error.message);
-        setShowAlert(true);
-      }
-    } else {
-      setAlertText(
-        googleAccountDetails.email,
-        'you are not a registered user, kindly register yourself first then try to login with this email',
+      // Create a Google credential with the token
+      const googleCredential = auth.GoogleAuthProvider.credential(
+        googleAccountDetails.idToken,
       );
-      setShowAlert(true);
-      GoogleSignin.signOut(); //it will allow user to select another google account, otherwise previous account will be selected by default
+      //it will return total signin methods for provided email, if any method exist it means user is already registered in database
+      const noOfMethods = await auth().fetchSignInMethodsForEmail(
+        googleAccountDetails.user.email,
+      );
+
+      if (noOfMethods.length) {
+        //means user have a valid registered account
+        // Sign-in the user with the credential
+        try {
+          const user = await auth().signInWithCredential(googleCredential);
+          //promise resolved succesfully
+          //console.log('Signed in with Google!', user);
+          navigation.navigate('Main', {
+            screen: 'Home',
+            params: {
+              userName: user.additionalUserInfo.profile.given_name,
+              picture: './../../res/images/no-image.jpg',
+            },
+          });
+        } catch (error) {
+          //promise rejected
+          setAlertText(error.message);
+          setShowAlert(true);
+        }
+      } else {
+        //console.log('inside else');
+        setAlertText(
+          `${googleAccountDetails.user.email} you are not a registered user, kindly register yourself first then try to login with this email`,
+        );
+        setShowAlert(true);
+        GoogleSignin.signOut(); //it will allow user to select another google account, otherwise previous account will be selected by default
+      }
+    } catch (error) {
+      if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        //user is already prompted with modal to install by default
+      }
     }
   }
 
@@ -145,7 +153,7 @@ const Login = ({navigation}) => {
     auth()
       .sendPasswordResetEmail(email)
       .then(result => {
-        console.log(result);
+        //console.log(result);
         setAlertText(
           'Link is sent to provided email address, open that link and reset your password',
         );
@@ -157,7 +165,7 @@ const Login = ({navigation}) => {
         setShowAlert(true);
       });
   };
-  
+
   return (
     <>
       <KeyboardAvoidingView style={styles.container}>
@@ -227,14 +235,6 @@ const Login = ({navigation}) => {
                 },
               ]} //Or if don't want "backgroundColor:" and just need change the text color use => "color:""
               onPress={() => {
-                //setState({btnColor: '#42EADDFF'});
-                // setTimeout(() => {
-                //   navigation.navigate('Main');
-                //   setState({
-                //     btnColor: '#D5DBDB',
-                //     //googleBtnColor: '#D5DBDB',
-                //   });
-                // }, 100);
                 login();
               }}>
               <View>

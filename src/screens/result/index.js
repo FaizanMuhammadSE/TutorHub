@@ -1,5 +1,6 @@
 import {useNavigation} from '@react-navigation/native';
-import React, {useState} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
+//import haversine from 'haversine-distance';
 import {
   View,
   StyleSheet,
@@ -17,11 +18,163 @@ import Modal from 'react-native-modal';
 import {Card} from 'react-native-shadow-cards';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import AntIcon from 'react-native-vector-icons/AntDesign';
-
-const index = ({navigation, route}) => {
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
+import storage from '@react-native-firebase/storage';
+const Index = ({navigation, route}) => {
   if (navigation === undefined) navigation = useNavigation();
   const headerValue = route?.params.header;
+  const {
+    selectedUser,
+    selectedGender,
+    selectedAge,
+    enteredRadius,
+    enteredCoordinates,
+    selectedGrades,
+  } = route.params;
+  const [dataForFlatList, setDataForFlatList] = useState([]);
+  const resultantDataList = useRef([]);
+  const getUserId = () => {
+    //in-progress
+    return auth().currentUser.uid;
+  };
+  function haversine(lat1, lon1, lat2, lon2) {
+    // distance between latitudes
+    // and longitudes
+    let dLat = ((lat2 - lat1) * Math.PI) / 180.0;
+    let dLon = ((lon2 - lon1) * Math.PI) / 180.0;
 
+    // convert to radiansa
+    lat1 = (lat1 * Math.PI) / 180.0;
+    lat2 = (lat2 * Math.PI) / 180.0;
+
+    // apply formulae
+    let a =
+      Math.pow(Math.sin(dLat / 2), 2) +
+      Math.pow(Math.sin(dLon / 2), 2) * Math.cos(lat1) * Math.cos(lat2);
+    let rad = 6371;
+    let c = 2 * Math.asin(Math.sqrt(a));
+    return rad * c;
+  }
+
+  const fetchData = async () => {
+    let query;
+    if (selectedUser == true) {
+      query = firestore().collection('teachers');
+      if (selectedAge != 'Nothing')
+        query = query.where('age', '>=', selectedAge);
+    } else query = firestore().collection('students');
+    if (selectedGender != 'Nothing')
+      query = query.where('gender', '==', selectedGender);
+    query = query.where('grades', 'array-contains-any', selectedGrades);
+    let result = await query.get();
+    let arrayOfUsers = result.docs;
+    for (let i = 0; i < arrayOfUsers.length; i++) {
+      //if user is in range then fetch his images and store his data alongwith images in resultant dataList which will later fed to flatlist
+      if (
+        haversine(
+          enteredCoordinates[1],
+          enteredCoordinates[0],
+          arrayOfUsers[i]._data.latitude,
+          arrayOfUsers[i]._data.longitude,
+        ) <= enteredRadius
+      ) {
+        console.log('before getting images');
+        let displayPicture;
+        try {
+          displayPicture = await storage()
+            .ref(arrayOfUsers[i].id + '/dp')
+            .getDownloadURL();
+        } catch (error) {
+          displayPicture = './../../res/images/no-image.jpg';
+        }
+        resultantDataList.current.push({
+          userId: arrayOfUsers[i].id,
+          displayPicture: displayPicture,
+          data: arrayOfUsers[i]._data,
+        });
+        console.log('data of ith item is ready: ', i);
+      }
+    }
+    console.log('AFter preparing data here it is:', resultantDataList.current);
+    setDataForFlatList(resultantDataList.current);
+    // result.forEach(item => {
+    //   if (
+    //     haversine(
+    //       enteredCoordinates[1],
+    //       enteredCoordinates[0],
+    //       item._data.latitude,
+    //       item._data.longitude,
+    //     ) <= enteredRadius
+    //   ) {
+    //     storage()
+    //       .ref(getUserId() + '/dp')
+    //       .getDownloadURL()
+    //       .then(url => {})
+    //       .catch(() => {});
+    //     console.log('user qualified');
+    //   }
+    //   //else console.log('user disqualified');
+    //   // console.log('result: ', item._data);
+    //   // console.log('user Id', item.id);
+    //   // console.log(
+    //   //   'Distance for this: ',
+    //   //   haversine(
+    //   //     enteredCoordinates[1],
+    //   //     enteredCoordinates[0],
+    //   //     item._data.latitude,
+    //   //     item._data.longitude,
+    //   //   ),
+    //   // );
+    // });
+    //   result.forEach(
+    //     item => {
+    //       // console.log(
+    //       //   'query doc: ',
+    //       //   haversine(
+    //       //     {latitude: enteredCoordinates[1], longitude: enteredCoordinates[0]},
+    //       //     {
+    //       //       latitude: item.latitude,
+    //       //       longitude: item.longitude,
+    //       //     },
+    //       //     item,
+    //       //   ),
+    //       // ),
+    //      ,
+    //   }
+    // );
+    /////
+    // let query = firestore()
+    //   .collection('teachers')
+    //   .where('age', '>=', selectedAge)
+    //   .where('gender', '==', selectedGender)
+    //   .where('grades', 'array-contains-any', selectedGrades);
+    // let result = await query.get();
+    // result.forEach(item => console.log('query doc: ', item));
+  };
+  useEffect(() => {
+    console.log(
+      'values for searching:',
+      selectedUser,
+      selectedGender,
+      selectedAge,
+      enteredRadius,
+      enteredCoordinates,
+      selectedGrades,
+    );
+
+    fetchData();
+    // firestore()
+    //   .collection('students')
+    //   .where('grades', 'array-contains-any', selectedGrades)
+    //   .get()
+    //   .then(querySnapshot =>
+    //     querySnapshot.forEach(item =>
+    //       console.log('query result:', item.data()),
+    //     ),
+    //   );
+    //querySnapshot.forEach(item=>console.log("query result: ",item))
+  }, []);
   const data = [
     {
       name: 'Faizan Muhammad',
@@ -92,7 +245,7 @@ const index = ({navigation, route}) => {
     return (
       <TouchableOpacity
         style={{flexDirection: 'row', marginBottom: 10}}
-        onPress={() => navigation.navigate('UserDetails')}>
+        onPress={() => navigation.navigate('UserDetails', {item})}>
         <Card
           style={{
             margin: 2,
@@ -103,7 +256,11 @@ const index = ({navigation, route}) => {
           elevation={10}>
           <Image
             borderRadius={50}
-            source={require('../../res/images/me.png')}
+            source={
+              item.displayPicture.includes('http')
+                ? {uri: item.displayPicture}
+                : require('../../res/images/no-image.jpg')
+            }
             style={{height: 70, width: 70}}
           />
           {/*Now I want to split this view into further 2 rows of equal space, both will be sum parent height which is according to image height*/}
@@ -118,7 +275,7 @@ const index = ({navigation, route}) => {
                   color: 'black',
                   fontSize: 16,
                 }}>
-                {item.name}
+                {item.data.name}
               </Text>
             </View>
             <View style={{flex: 1}}>
@@ -139,10 +296,10 @@ const index = ({navigation, route}) => {
                     padding: 4,
                     paddingHorizontal: 8,
                   }}>
-                  Fees: Rs.{item.fees}
+                  Fees: Rs.{item.data.fees}
                 </Text>
-                <Icon name={item.gender} color="#F39C12" size={20}></Icon>
-                {item.verified == true ? (
+                <Icon name={item.data.gender} color="#F39C12" size={20}></Icon>
+                {item.data.verified == true ? (
                   <Text
                     style={{
                       textAlign: 'center',
@@ -178,11 +335,12 @@ const index = ({navigation, route}) => {
               color: 'black',
               flex: 1,
             }}>
-            Search Result
+            Search Results
           </Text>
         </Card>
       ) : null}
-      <FlatList data={data} renderItem={designItem}></FlatList>
+      <Text>{dataForFlatList.length}</Text>
+      <FlatList data={dataForFlatList} renderItem={designItem}></FlatList>
     </View>
   );
 };
@@ -202,4 +360,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default index;
+export default Index;

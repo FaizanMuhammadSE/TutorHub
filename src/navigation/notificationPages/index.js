@@ -1,15 +1,18 @@
-import React from 'react';
+import React, {useContext} from 'react';
 import {Text} from 'react-native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import HomeScreen from '../../screens/home/index.js';
 import SearchScreen from '../../screens/search/index.js';
-import NotificationScreen from '../../screens/notifications/index.js';
+import TeacherNotificationScreen from '../../screens/notifications/teacher.js';
+import StudentNotificationScreen from '../../screens/notifications/student.js';
+import OtherNotificationScreen from '../../screens/notifications/other.js';
 import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
-
+import {NotificationsContext} from '../../Context/index.js';
 const TopTab = createMaterialTopTabNavigator();
 
-function index({navigation}) {
+function Index({navigation}) {
+  const notificationsContext = useContext(NotificationsContext);
   return (
     <TopTab.Navigator
       screenOptions={({route}) => ({
@@ -32,17 +35,35 @@ function index({navigation}) {
         //       size=15
         //   return <Ionicons name={iconName} size={size} color={color} />;
         // },
+        tabBarBadge: () => {
+          return (
+            <Text
+              style={{
+                color: 'white',
+                borderRadius: 20,
+                backgroundColor: 'red',
+                padding: 4,
+              }}>
+              {route.name == 'Teacher'
+                ? notificationsContext.teacherUnread
+                : route.name == 'Student'
+                ? notificationsContext.studentUnread
+                : notificationsContext.teacherOtherUnread +
+                  notificationsContext.studentOtherUnread}
+            </Text>
+          );
+        },
         tabBarActiveTintColor: 'blue',
         tabBarInactiveTintColor: 'black',
         headerShown: false,
         tabBarLabelStyle: {elevation: 10, fontSize: 18},
       })}
       initialRouteName="Teacher">
-      <TopTab.Screen name="Teacher" component={NotificationScreen} />
-      <TopTab.Screen name="Student" component={NotificationScreen} />
-      <TopTab.Screen name="Other" component={NotificationScreen} />
+      <TopTab.Screen name="Teacher" component={TeacherNotificationScreen} />
+      <TopTab.Screen name="Student" component={StudentNotificationScreen} />
+      <TopTab.Screen name="Other" component={OtherNotificationScreen} />
     </TopTab.Navigator>
   );
 }
 
-export default index;
+export default Index;

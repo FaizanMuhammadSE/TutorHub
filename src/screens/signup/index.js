@@ -24,7 +24,10 @@ import OutlineInput from 'react-native-outline-input';
 import AwesomeAlert from 'react-native-awesome-alerts';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
-import {GoogleSignin} from '@react-native-google-signin/google-signin';
+import {
+  GoogleSignin,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
 import * as RNFS from 'react-native-fs';
 //const fileHandler = require('fs');
 GoogleSignin.configure({
@@ -50,102 +53,58 @@ const Signup = ({navigation}) => {
   //all helper functions are defined here
 
   async function onGoogleButtonPress() {
-    // Get the users ID token
-    const googleAccountDetails = await GoogleSignin.signIn();
-
-    // Create a Google credential with the token
-    const googleCredential = auth.GoogleAuthProvider.credential(
-      googleAccountDetails.idToken,
-    );
-    const status = auth().isSignInWithEmailLink(googleAccountDetails.email); //checking either someone already registered with this email
-    if (status == false) {
-      //means previously no one is registered with this account
-      // Sign-in the user with the credential
-      try {
-        const user = await auth().signInWithCredential(googleCredential);
-        //promise resolved succesfully
-        console.log('Signed in with Google!', user);
-        //before navigation to Main Page store this user in txtfile as new user
-        addUserToLocalStorage(auth().currentUser.uid);
-        navigation.navigate('Main');
-      } catch (error) {
-        //promise rejected
-        setAlertText(error.message);
-        setShowAlert(true);
-      }
-    } else {
-      setAlertText(
-        `Someone is already registered with this email ${googleAccountDetails.email}, you should try to register with another email.`,
+    try {
+      await GoogleSignin.hasPlayServices(); //checking either user has google play services installed if not then user will be prompted with a modal by default
+      // Get the users ID token
+      const googleAccountDetails = await GoogleSignin.signIn();
+      //console.log('Google Account Credentials:', googleAccountDetails);
+      // Create a Google credential with the token
+      const googleCredential = auth.GoogleAuthProvider.credential(
+        googleAccountDetails.idToken,
       );
-      setShowAlert(true);
-      GoogleSignin.signOut(); //it will allow user to select another google account, otherwise previous account will be selected by default
+      //console.log('Google Credentials:', googleCredential);
+      const noOfMethods = await auth().fetchSignInMethodsForEmail(
+        googleAccountDetails.user.email,
+      ); //checking either someone already registered with this email
+      //lenght==0 means there is no signin mehtod for provided email which elaborates that user is new
+      if (noOfMethods.length == 0) {
+        //means previously no one is registered with this account
+        // Sign-in the user with the credential
+        try {
+          const user = await auth().signInWithCredential(googleCredential);
+          //promise resolved succesfully
+          console.log(
+            'Signed in with Google!',
+            user.additionalUserInfo.profile.given_name,
+          );
+          //before navigation to Main Page store this user in txtfile as new user
+          //addUserToLocalStorage(auth().currentUser.uid);
+          navigation.navigate('Main', {
+            screen: 'Home',
+            params: {
+              userName: user.additionalUserInfo.profile.given_name,
+              picture: './../../res/images/no-image.jpg',
+            },
+          });
+        } catch (error) {
+          //promise rejected
+          setAlertText(error.message);
+          setShowAlert(true);
+        }
+      } else {
+        //console.log(googleAccountDetails.user.email);
+        setAlertText(
+          `Someone is already registered with this email ${googleAccountDetails.user.email}, you should try to register with another email.`,
+        );
+        setShowAlert(true);
+        GoogleSignin.signOut(); //it will allow user to select another google account, otherwise previous account will be selected by default
+      }
+    } catch (error) {
+      if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        //user is already prompted with modal to install by default
+      }
     }
   }
-  // async function onGoogleButtonPress() {
-  //   // Get the users ID token
-  //   const {idToken} = await GoogleSignin.signIn();
-
-  //   // Create a Google credential with the token
-  //   const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-
-  //   // Sign-in the user with the credential
-  //   try {
-  //     const user = await auth().signInWithCredential(googleCredential);
-  //     //promise resolved succesfully
-  //     console.log('Signed in with Google!', user);
-  //     if (user.additionalUserInfo.isNewUser == false) {
-  //       //it means this user is not new to our app
-  //       setAlertText(
-  //         `Someone is already registered with this email ${user.additionalUserInfo.profile.email}, you should try to register with another email.`,
-  //       );
-  //       setShowAlert(true);
-  //     } else {
-  //       //user is newly registered lets navigate it Main Page
-  //       firestore() //error of this query will also catched by catch statement
-  //         .collection('first_visit')
-  //         .add({id: user.uid, status: true})
-  //         .catch(error =>
-  //           console.log('Error arise while setting first visit flag: ', error),
-  //         );
-  //       navigation.navigate('Main');
-  //     }
-  //   } catch (error) {
-  //     //promise rejected
-  //     setAlertText(error.message);
-  //     setShowAlert(true);
-  //   }
-  // }
-
-  const addUserToLocalStorage = userId => {
-    // fileHandler.readFile('../../res/local_storage', (err, data) => {
-    //   if (err) console.log('Error arise while writing user to local DB', err);
-    //   storage = JSON.parse(data.toString());
-    //   storage.userId = true;
-    //   fileHandler.writeFile(
-    //     '../res/local_storage',
-    //     Json.toString(storage),
-    //     () => {
-    //       console.log('User has been written in DB', uid);
-    //     },
-    //   );
-    // });
-
-    RNFS.readFile('../../res/local_storage')
-      .then(data => {
-        var storage = JSON.parse(data.toString());
-        const id = userId;
-        storage.id = true;
-        RNFS.writeFile('../../res/local_storage', JSON.toString(storage)).then(
-          () => console.log('USER ADDED TO LOCAL DB SUCCESSFULLY'),
-        );
-      })
-      .catch(error =>
-        console.log(
-          'Error comes while setting user data in local_storage:',
-          error,
-        ),
-      );
-  };
   const createUser = async () => {
     //
     if (
@@ -160,15 +119,15 @@ const Signup = ({navigation}) => {
     }
     try {
       const res = await auth().createUserWithEmailAndPassword(email, password);
-      console.log('User account created & signed in!', res);
-
+      //console.log('User account created & signed in!', res);
+      //console.log('USER DETAILS THROUGH AUTH: ', auth().currentUser);
       auth()
         .currentUser.sendEmailVerification()
         .then(
           () => {
-            console.log(
-              'We have sent you email on provided email address, go and check it out',
-            );
+            // console.log(
+            //   'We have sent you email on provided email address, go and check it out',
+            // );
             setAlertText(
               'Verification link is sent to your provided email address, open it and complete your verification step. Then go to SignIn Page and Login with your credentials',
             );
@@ -177,15 +136,7 @@ const Signup = ({navigation}) => {
           },
           error => setAlertText(error.message),
         );
-
       setShowAlert(true);
-      addUserToLocalStorage(auth().currentUser.uid);
-      // firestore() //error of this query will also catched by catch statement
-      //   .collection('first_visit')
-      //   .add({id: auth().currentUser.uid, status: true})
-      //   .catch(error =>
-      //     console.log('Error arise while setting first visit flag: ', error),
-      //   );
     } catch (error) {
       if (error.code === 'auth/email-already-in-use') {
         console.log('That email address is already in use!');
@@ -197,13 +148,6 @@ const Signup = ({navigation}) => {
       setAlertText(error.message);
       setShowAlert(true);
     }
-
-    // try {
-    //   let token = await auth().currentUser.getIdToken(true);
-    //   console.log('user id token: ', token);
-    // } catch (error) {
-    //   console.log('error while taking token: ', err);
-    // }
   };
 
   return (
@@ -211,22 +155,22 @@ const Signup = ({navigation}) => {
       <View style={styles.container}>
         <View style={styles.triangleContainer}></View>
         <ScrollView>
-          <Button
+          {/* <Button
             title="SignOut"
             onPress={() => {
               const signout = async () => {
                 //this code is working perfectly
-                console.log('current user: ', auth().currentUser);
+                //console.log('current user: ', auth().currentUser);
                 await auth().signOut(); //it will remove current user present in auth, either that user was logged in through Google or Email/Password
-                console.log('Current User Status: ', auth().currentUser);
+                //console.log('Current User Status: ', auth().currentUser);
                 await GoogleSignin.signOut(); //If we will not signOut from there then next time, it will automatically select already selected user and will not give pop-up
-                console.log('Signout from google also now agian login');
+                //console.log('Signout from google also now agian login');
               };
               signout();
               // GoogleSignin.signOut().then(
               //   console.log('user signed out: ', auth().currentUser),
               // );
-            }}></Button>
+            }}></Button> */}
           <View style={styles.formContainer}>
             {/* <Text>{value}</Text> */}
             <View style={styles.textInput}>
@@ -295,7 +239,7 @@ const Signup = ({navigation}) => {
                   //   });
                   // }, 100);
 
-                  console.log('function triggered');
+                  //console.log('function triggered');
 
                   createUser();
 

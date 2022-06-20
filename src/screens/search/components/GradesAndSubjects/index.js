@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect, useContext} from 'react';
 import {
   View,
   StyleSheet,
@@ -10,18 +10,34 @@ import {
 } from 'react-native';
 import {Card} from 'react-native-shadow-cards';
 import Icon from 'react-native-vector-icons/FontAwesome';
-import grades, {subjects} from '../../../../res/data.js';
-
+import grades, {
+  subjects,
+  getGradesFromModule,
+  getSubjectsFromModule,
+} from '../../../../res/data.js';
+import {GradesAndSubjectsContext} from '../../../../Context/index.js';
 const GradesAndSubjects = ({
   GradeManagement,
   SubjectManagement,
   IsGradeSelected,
   IsSubjectSelected,
 }) => {
+  const context = useContext(GradesAndSubjectsContext);
+  useEffect(() => {
+    // console.log(
+    //   'UseEffect of GradesSubjects called ',
+    //   grades,
+    //   getGradesFromModule(),
+    // );
+    //console.log('UseEffect of GradesAndSubjects: ', context);
+    return () => {
+      //console.log('GradeSubject Component Unmounted');
+    };
+  });
   return (
     <View>
-      {grades.map((grade, gradeIndex) => (
-        <View>
+      {context.grades.map((grade, gradeIndex) => (
+        <View key={gradeIndex}>
           <TouchableOpacity onPress={() => GradeManagement(gradeIndex)}>
             <Text
               style={
@@ -40,9 +56,10 @@ const GradesAndSubjects = ({
                   justifyContent: 'space-around',
                   flexWrap: 'wrap',
                 }}>
-                {subjects[gradeIndex].map((subject, subjectIndex) => (
+                {context.subjects[gradeIndex].map((subject, subjectIndex) => (
                   <TouchableOpacity
-                    onPress={() => SubjectManagement(gradeIndex, subjectIndex)}>
+                    onPress={() => SubjectManagement(gradeIndex, subjectIndex)}
+                    key={subjectIndex}>
                     <Text
                       style={
                         IsSubjectSelected(gradeIndex, subjectIndex)
