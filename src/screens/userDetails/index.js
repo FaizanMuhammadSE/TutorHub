@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import {
   View,
   StyleSheet,
@@ -16,7 +16,7 @@ import MaterialIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import UserAvatar from 'react-native-user-avatar';
 import {Card} from 'react-native-shadow-cards';
 
-const index = ({navigation}) => {
+const Index = ({navigation, route}) => {
   const data = {
     name: 'Faizan Muahammad',
     gender: 'male',
@@ -26,7 +26,10 @@ const index = ({navigation}) => {
     about:
       'No, in stackNavigator, if routed screen in already available in the stack then it will not be re-rendered...',
   };
-
+  const {item} = route.params;
+  useEffect(() => {
+    console.log('user details useEffect: ', item);
+  }, []);
   return (
     <ScrollView>
       <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -45,7 +48,11 @@ const index = ({navigation}) => {
         <TouchableOpacity>
           <Image
             borderRadius={50}
-            source={require('../../res/images/me.png')}
+            source={
+              item.displayPicture.includes('http') == true
+                ? {uri: item.displayPicture}
+                : require('../../res/images/no-image.jpg')
+            }
             style={{height: 100, width: 100}}
           />
         </TouchableOpacity>
@@ -64,7 +71,7 @@ const index = ({navigation}) => {
         cornerRadius={10}
         opacity={0.2}>
         <Text numberOfLines={1} style={{marginHorizontal: 15, color: 'black'}}>
-          Faizan Muhammad
+          {item.data.name}
         </Text>
       </Card>
 
@@ -81,11 +88,11 @@ const index = ({navigation}) => {
             styles.cardItem,
             {backgroundColor: 'red', borderColor: 'red'},
           ]}>
-          Fees: Rs.{data.fees}
+          Fees: Rs.{item.data.fees}
         </Text>
         <Icon
           style={{alignSelf: 'center', marginBottom: 10}}
-          name="male"
+          name={item.data.gender}
           size={35}
           color="#F39C12"></Icon>
         <Text
@@ -93,11 +100,11 @@ const index = ({navigation}) => {
             styles.cardItem,
             {backgroundColor: '#5DADE2', borderColor: '#5DADE2'},
           ]}>
-          Experience: {data.experience} years
+          Experience: {item.data.experience} years
         </Text>
       </Card>
 
-      <Card style={styles.cardStyle} elevation={30} cornerRadius={20}>
+      {/* <Card style={styles.cardStyle} elevation={30} cornerRadius={20}>
         <Text
           style={{
             alignSelf: 'center',
@@ -123,7 +130,7 @@ const index = ({navigation}) => {
             </Text>
           ))}
         </View>
-      </Card>
+      </Card> */}
 
       <Text
         style={{
@@ -237,7 +244,9 @@ const index = ({navigation}) => {
         About
       </Text>
       <Card style={styles.cardStyle} elevation={10} cornerRadius={20}>
-        <Text style={{marginHorizontal: 15, color: 'black'}}>{data.about}</Text>
+        <Text style={{marginHorizontal: 15, color: 'black'}}>
+          {item.data.about}
+        </Text>
       </Card>
 
       <Text
@@ -358,4 +367,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default index;
+export default Index;

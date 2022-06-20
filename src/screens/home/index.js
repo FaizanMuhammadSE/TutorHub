@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useState, useContext} from 'react';
 import {
   View,
   StyleSheet,
@@ -26,58 +26,131 @@ import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
 import {GoogleSignin} from '@react-native-google-signin/google-signin';
+import MapboxGL from '@react-native-mapbox-gl/maps';
+import RNLocation from 'react-native-location';
+import RNAndroidLocationEnabler from 'react-native-android-location-enabler';
+import {NotificationsContext} from '../../Context';
 import * as RNFS from 'react-native-fs';
 const fileHandler = require('fs');
 
 // Import Image Picker
 // import ImagePicker from 'react-native-image-picker';
 import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
+import {receiveMessageOnPort} from 'worker_threads';
 
-const index = ({navigation}) => {
+MapboxGL.setAccessToken(
+  'sk.eyJ1IjoiZmFpemFubXVoYW1tYWQiLCJhIjoiY2wxZDNpejAwMGR3dzNpbnJ4eGcyN25zcyJ9.0cGcYbGcksjg51diWhv7sg',
+);
+RNLocation.configure({
+  distanceFilter: null,
+});
+
+const Index = ({navigation, route}) => {
   const Height = Dimensions.get('screen').height;
   const Width = Dimensions.get('screen').width;
-
-  // const [filePath, setFilePath] = useState({
-  //   assets: [
-  //     {
-  //       uri: '',
-  //     },
-  //   ],
-  // });
-  const [filePath, setFilePath] = useState('');
+  const [filePath, setFilePath] = useState('./../../res/images/no-image.jpg');
   const [showModal, setShowModal] = useState(false);
   const [logout, setLogout] = useState(false);
-  const [name, setName] = useState(false);
-  const setUserToLocalStorage = userId => {
-    // fileHandler.readFile('../res/local_storage', (err, data) => {
-    //   if (err) console.log('Error arise while writing user to local DB', err);
-    //   storage = JSON.parse(data.toString());
-    //   storage.userId = false; //do it false after reading user first time
-    //   fileHandler.writeFile(
-    //     '../../res/local_storage',
-    //     Json.toString(storage),
-    //     () => {
-    //       console.log('User has been written in DB', uid);
-    //     },
-    //   );
-    // });
-    RNFS.readFile('../../res/local_storage.txt')
-      .then(data => {
-        var storage = JSON.parse(data.toString());
-        const id = userId;
-        storage.id = true;
-        RNFS.writeFile('../../res/local_storage', JSON.toString(storage)).then(
-          () => console.log('USER ADDED TO LOCAL DB SUCCESSFULLY'),
-        );
-      })
-      .catch(error =>
-        console.log(
-          'Error comes while setting user data in local_storage:',
-          error,
-        ),
-      );
-  };
+  const [nameModal, showNameModal] = useState(false);
+  const [name, setName] = useState('');
+  const [tempName, setTempName] = useState('');
+  //states for map
+  const [coordinates, setCoordiantes] = useState([
+    74.30802498247266, 31.57333670552373,
+  ]); //[longitude,latitude] //by-default value given for initializing maps
+  const [address, setAddress] = useState('Here is your location...');
+  const {userName, picture} = route.params; //these parameters are navigated to this screen
+  // const messages = useRef({});
+  const notificationsContext = useContext(NotificationsContext);
 
+  const manageLocation = location => {
+    firestore()
+      .collection('teachers')
+      .doc(getUserId())
+      .update({
+        longitude: location.longitude,
+        latitude: location.latitude,
+      })
+      .then(console.log('Location set in teacher account'));
+
+    firestore()
+      .collection('students')
+      .doc(getUserId())
+      .update({
+        longitude: location.longitude,
+        latitude: location.latitude,
+      })
+      .then(console.log('Location set in student account'));
+    getAddressUsingMapboxApi(location.longitude, location.latitude); //address state will be set in this func
+    setCoordiantes([location.longitude, location.latitude]);
+  };
+  const permissionHandle = async () => {
+    //console.log('At Start of function');
+
+    //checking permission, Is permission already given
+    let permission = await RNLocation.checkPermission({
+      ios: 'whenInUse', // or 'always'
+      android: {
+        detail: 'coarse', // or 'fine'
+      },
+    });
+
+    //console.log('Permission Status before extracting location: ' + permission);
+
+    let location;
+
+    //if permission not given, then try to take permission
+    if (!permission) {
+      // console.log('Inside Permission taking block');
+      permission = await RNLocation.requestPermission({
+        ios: 'whenInUse',
+        android: {
+          detail: 'coarse',
+          rationale: {
+            title: 'We need to access your location',
+            message: 'We use your location to find best match for you',
+            buttonPositive: 'OK',
+            buttonNegative: 'Cancel',
+          },
+        },
+      });
+
+      //console.log('Status after asking for permission: ' + permission);
+    }
+
+    //if permission given then, then ask for turning on location, and get coordinates, if location enabled
+
+    if (permission) {
+      let data;
+      try {
+        data = await RNAndroidLocationEnabler.promptForEnableLocationIfNeeded({
+          interval: 10000,
+          fastInterval: 5000,
+        });
+
+        //console.log('Location Enabled: ', data);
+      } catch (error) {}
+
+      if (data == 'already-enabled' || data == 'enabled') {
+        //console.log('before getting location', location);
+        location = await RNLocation.getLatestLocation({timeout: 60000});
+        //console.log('In between: ', location);
+        //location = await RNLocation.getLatestLocation({timeout: 1000});
+        //console.log('after 2nd Call: ', location);
+        console.log(
+          'hERE is location object: ',
+          location,
+          // location.longitude,
+          // location.latitude,
+          // location.timestamp,
+        );
+
+        if (location) {
+          manageLocation(location);
+        }
+      }
+    }
+  };
   const requestCameraPermission = async () => {
     if (Platform.OS === 'android') {
       try {
@@ -174,77 +247,268 @@ const index = ({navigation}) => {
         alert(response.errorMessage);
         return;
       }
-      console.log('File path is this: ', response);
+      //console.log('File path is this: ', response);
       setFilePath(response.assets[0].uri);
-      // console.log('Now file Path is: ', filePath.assets[0].uri);
-      // const fileName = '/banana'; //`${auth().currentUser.uid}/dp`;
-      // const reference = storage().ref(fileName);
-      // console.log(fileName);
-      // // path tdo existing file on filesystem
-      // //const pathToFile = `${filePath.assets[0].uri}/dp.png`;
-      // // uploads file
-      // console.log('We are going to upload this file: ', filePath.assets[0].uri);
-      // const task = reference.putFile(filePath.assets[0].uri);
-      // task.on('state_changed', taskSnapshot => {
-      //   console.log(
-      //     `${taskSnapshot.bytesTransferred} transferred out of ${taskSnapshot.totalBytes}`,
-      //   );
-      // });
-      // task
-      //   .then(() => {
-      //     console.log('Image uploaded to the bucket!');
-      //   })
-      //   .catch(error => console.log('image not uploaded to storage', error));
     }).catch(error => console.log('Image library promise rejected'));
   };
 
-  const generateId = () => {
+  const getUserId = () => {
     //in-progress
     return auth().currentUser.uid;
   };
-  useEffect(() => {
-    console.log('useEffect one', filePath);
-    // RNFS.readFile('../../res/local_storage.txt')
-    //   .then(data => {
-    //     id = auth().currentUser.uid;
-    //     storage = JSON.parse(data);
-    //     if (storage.id == true) {
-    //       setAlertText(
-    //         'Welcome to Tutor Hub, we will recommend read our help section before using this app',
-    //       );
-    //       setShowAlert(true);
-    //       setUserToLocalStorage(id); //now this user will be false forever
-    //     }
-    //   })
-    //   .catch(err =>
-    //     console.log('error comes while reading file: ', err.code, err.message),
-    //   );
-    // RNFS.readDir(RNFS.DocumentDirectoryPath).then(files => {
-    //   files.forEach(item => console.log(item));
-    // });
-    //
-    storage()
-      .ref(generateId() + '/dp')
-      .getDownloadURL()
-      .then(url => {
-        console.log('URL is:', url);
-        setFilePath(url); //setting this state will run useEffect associated with filePath and will upload image uselessly but thats fine
+
+  const getAddressUsingMapboxApi = (longitude, latitude) => {
+    fetch(
+      'https://api.mapbox.com/geocoding/v5/mapbox.places/' +
+        longitude +
+        ', ' +
+        latitude +
+        '.json?access_token=' +
+        'sk.eyJ1IjoiZmFpemFubXVoYW1tYWQiLCJhIjoiY2wxZDNpejAwMGR3dzNpbnJ4eGcyN25zcyJ9.0cGcYbGcksjg51diWhv7sg',
+    )
+      .then(response => response.json())
+      .then(result => {
+        //console.log(result.features[0].place_name);
+        //setting state
+        setAddress(result.features[0].place_name);
       })
-      .catch(err => console.log('Err WHILE getting url:', err.code));
+      .catch(err =>
+        console.log('Error ecnounterd while making Api call:', err),
+      );
+  };
+
+  const initializeLongitudeAndLatitudeValues = async () => {
+    //if (address != 'Here is your location...') return; //values are already initialized
+    const result = await firestore()
+      .collection('teachers')
+      .doc(getUserId())
+      .get();
+    let values = result.data();
+    //set states after fetching data from database...
+    if (values.longitude != undefined) {
+      getAddressUsingMapboxApi(values.longitude, values.latitude);
+      setCoordiantes([values.longitude, values.latitude]);
+      //console.log('Initialization of long and lat is done');
+    }
+  };
+  const checkingFirstVisitAndSettingAccount = async () => {
+    try {
+      const userData = await firestore()
+        .collection('teachers')
+        .doc(getUserId())
+        .get();
+      if (userData.exists) {
+        //console.log('user already exists, msg by useEffect');
+        //user exists so get name and image from database
+        //messages = userData.data().messages; //these messages will be required in teacherAccount during handling notifications
+        try {
+          const avatarUrl = await storage()
+            .ref(getUserId() + '/dp')
+            .getDownloadURL();
+          //console.log('image is downloaded:', avatarUrl);
+          setFilePath(avatarUrl); //filePath set
+          //console.log('Url of your image: ', avatarUrl);
+        } catch (error) {
+          console.log('some error came: ', error.code);
+          //if(avatarUrl not exists then put static file in setFilePath not avatarUrl)
+          if (error.code == 'storage/object-not-found') {
+            setFilePath('./../../res/images/no-image.jpg');
+          }
+        }
+        //console.log('user name is : ', userData.data().name);
+        setName(userData.data().name); //name set
+        //console.log('user data:', userData.name);
+      } else {
+        //user not exist so set name and image to database
+        //console.log('user not exist in database, lets save it');
+        await firestore()
+          .collection('teachers')
+          .doc(getUserId())
+          .set({name: userName});
+        //name will also updated in student account, because data is updated
+        await firestore()
+          .collection('students')
+          .doc(getUserId())
+          .set({name: userName});
+
+        //image will be uploaded by filePath useEffect on setting image state
+        setName(userName);
+        setFilePath(picture);
+      }
+    } catch (error) {
+      err => console.log('Document Reference Error:', err);
+    }
+  };
+  function resetNotificationStates() {
+    notificationsContext.setTeacher([]);
+    notificationsContext.setStudent([]);
+    notificationsContext.setTeacherOther([]);
+    notificationsContext.setStudentOther([]);
+    notificationsContext.setTeacherUnread(0);
+    notificationsContext.setStudentUnread(0);
+    notificationsContext.setTeacherOtherUnread(0);
+    notificationsContext.setStudentOtherUnread(0);
+  }
+  function teacherCallback(DocumentSnapshot) {
+    console.log('Got Teacher collection result.', DocumentSnapshot);
+    let receivedMessages = DocumentSnapshot._data.messages;
+    console.log(
+      'These messages are received by teacher listener:',
+      receivedMessages,
+    );
+    if (
+      receivedMessages == undefined ||
+      receivedMessages == null ||
+      receivedMessages == false
+    )
+      return;
+    //just run script/code if new record is added in messages field
+    let keys = Object.keys(receivedMessages);
+    //length-1 means I'm extracting that redundant entry(with key "current") in object
+    let keysLength = keys.length;
+    if (keys.includes('current') != -1) keysLength--;
+    console.log(
+      'lengths comparison: ',
+      keysLength,
+      notificationsContext.teacher.length +
+        notificationsContext.teacherOther.length,
+    );
+
+    let tempTeacher = [];
+    let tempTeacherOther = [];
+    let tempTeacherUnread = 0;
+    let tempTeacherOtherUnread = 0;
+    keys.forEach(key => {
+      console.log('this is key', key, receivedMessages[key]['type']);
+      if (key == 'current') return;
+      if (receivedMessages[key]['type'] == 'normal') {
+        tempTeacher.push({...receivedMessages[key], id: key});
+        if (receivedMessages[key]['status'] == true) tempTeacherUnread++;
+      } else {
+        tempTeacherOther.push({...receivedMessages[key], id: key});
+        if (receivedMessages[key]['status'] == true) tempTeacherOtherUnread++;
+      }
+    });
+    //messages
+    // if (
+    //   keysLength !=
+    //   notificationsContext.teacher.length +
+    //     notificationsContext.teacherOther.length
+    // ) {
+    notificationsContext.setTeacher(tempTeacher);
+    notificationsContext.setTeacherOther(tempTeacherOther);
+    ///} else {
+    //  console.log('just status changed so no need to update data');
+    //}
+    //count of unread messages
+    notificationsContext.setTeacherUnread(tempTeacherUnread);
+    notificationsContext.setTeacherOtherUnread(tempTeacherOtherUnread);
+    // } else {
+    //   console.log('else is running no state is updated');
+    // }
+  }
+  function studentCallback(DocumentSnapshot) {
+    console.log('Got Student collection result.');
+    let receivedMessages = DocumentSnapshot._data.messages;
+    console.log(
+      'These messages are received by student listener:',
+      receivedMessages,
+    );
+    //just run script/code if new record is added in messages field
+    if (
+      receivedMessages == undefined ||
+      receivedMessages == null ||
+      receivedMessages == false
+    )
+      return;
+    let keys = Object.keys(receivedMessages);
+    //length-1 means I'm extracting that redundant entry(with key "current") in object
+    let keysLength = keys.length;
+    if (keys.includes('current') != -1) keysLength--;
+    console.log(
+      'lengths comparison: ',
+      keysLength,
+      notificationsContext.student.length +
+        notificationsContext.studentOther.length,
+    );
+
+    let tempStudent = [];
+    let tempStudentOther = [];
+    let tempStudentUnread = 0;
+    let tempStudentOtherUnread = 0;
+    keys.forEach(key => {
+      if (key == 'current') return;
+      if (receivedMessages[key]['type'] == 'normal') {
+        tempStudent.push({...receivedMessages[key], id: key});
+        if (receivedMessages[key]['status'] == true) tempStudentUnread++;
+      } else {
+        tempStudentOther.push({...receivedMessages[key], id: key});
+        if (receivedMessages[key]['status'] == true) tempStudentOtherUnread++;
+      }
+    });
+    // if (
+    //   keysLength !=
+    //   notificationsContext.student.length +
+    //     notificationsContext.studentOther.length
+    // ) {
+    notificationsContext.setStudent(tempStudent);
+    notificationsContext.setStudentOther(tempStudentOther);
+    //}
+    notificationsContext.setStudentUnread(tempStudentUnread);
+    notificationsContext.setStudentOtherUnread(tempStudentOtherUnread);
+  }
+  useEffect(() => {
+    const teacherSubscriber = firestore()
+      .collection('teachers')
+      .doc(auth().currentUser.uid)
+      .onSnapshot(teacherCallback, () => {
+        console.log('Error with teacher listener');
+      });
+    const studentSubscriber = firestore()
+      .collection('students')
+      .doc(auth().currentUser.uid)
+      .onSnapshot(studentCallback, () => {
+        console.log('Error with student listener');
+      });
+    return () => {
+      teacherSubscriber();
+      studentSubscriber();
+    };
+  }, []);
+
+  useEffect(() => {
+    //console.log('useEffect one', filePath);
+    //console.log('Routing Values to the HOme screen:', userName, picture);
+    checkingFirstVisitAndSettingAccount();
+    //extracting image from database
+    // storage()
+    //   .ref(getUserId() + '/dp')
+    //   .getDownloadURL()
+    //   .then(url => {
+    //     console.log('URL is:', url);
+    //     setFilePath(url); //setting this state will run useEffect associated with filePath and will upload image uselessly but thats fine
+    //   })
+    //   .catch(err => console.log('Err WHILE getting url:', err.code));
     //
     // RNFS.exists('../../res/local_storage.txt').then(status =>
     //   console.log(status),
     //);
   }, []);
-  //it will run on componentDidMount and whenever filePath is updated
+
+  //it will run on componentDidMount and whenever image is changed by user, we will update it in database
   useEffect(() => {
-    console.log('useEffect two', filePath);
+    //console.log('useEffect two filePath listener:', filePath);
     //if filePath is empty then no need to upload on firebase, return from this useEffect right now
-    if (filePath != '' && filePath.includes('http') == false) {
-      console.log('Runnig filePath useEffect');
-      const fileName = generateId() + '/' + 'dp';
+    //also don't upload static file to firebase
+    if (
+      filePath != '' &&
+      filePath.includes('http') == false &&
+      filePath.includes('./../../res/images/no-image.jpg') == false
+    ) {
+      //console.log('Runnig filePath useEffect', filePath);
+      const fileName = getUserId() + '/' + 'dp';
       const reference = storage().ref(fileName);
-      console.log('Checking filePath in useEffect:', filePath);
+      //console.log('Checking filePath in useEffect:', filePath);
       const task = reference.putFile(filePath);
       task.on('state_changed', taskSnapshot => {
         console.log(
@@ -256,6 +520,10 @@ const index = ({navigation}) => {
           console.log('Image uploaded to the bucket!');
         })
         .catch(error => console.log('image not uploaded to storage', error));
+    } else {
+      // console.log(
+      //   'useEffect cancel uploading image because image is already belongs to remote',
+      // );
     }
   }, [filePath]);
   return (
@@ -288,7 +556,16 @@ const index = ({navigation}) => {
                   left: 20,
                   zIndex: 2,
                 }}>
-                9+
+                {notificationsContext.teacherUnread +
+                  notificationsContext.teacherOtherUnread +
+                  notificationsContext.studentUnread +
+                  notificationsContext.studentOtherUnread <=
+                9
+                  ? notificationsContext.teacherUnread +
+                    notificationsContext.teacherOtherUnread +
+                    notificationsContext.studentUnread +
+                    notificationsContext.studentOtherUnread
+                  : '9+'}
               </Text>
               <Ionicons
                 style={{marginRight: 0}}
@@ -313,9 +590,12 @@ const index = ({navigation}) => {
                 <Image
                   borderRadius={50}
                   source={
-                    filePath.length == 0
-                      ? require('../../res/images/no-image.jpeg')
-                      : {uri: filePath}
+                    filePath.includes('http') || filePath.includes('file:')
+                      ? {uri: filePath}
+                      : require('./../../res/images/no-image.jpg')
+                    // filePath.length == 0
+                    //   ? require('../../res/images/no-image.jpg')
+                    //   : {uri: filePath}
                   }
                   style={{height: 100, width: 100}}
                 />
@@ -336,37 +616,49 @@ const index = ({navigation}) => {
             />
           </View>
 
-          <TouchableOpacity style={{height: '20%'}}>
-            <View>
-              <Card
-                style={{
-                  alignSelf: 'center',
-                  flexDirection: 'row',
-                  backgroundColor: '#42EADDFF',
-                  justifyContent: 'center',
-                  padding: 10,
-                }}
-                elevation={20}
-                cornerRadius={20}
-                opacity={0.2}>
-                <Text numberOfLines={1} style={{marginHorizontal: 15}}>
-                  Faizan Muhammad
-                </Text>
-                <Icon
-                  style={{left: 0}}
-                  size={24}
-                  color="teal"
-                  name="eraser"
-                  onPress={() => setName(true)}
-                />
-              </Card>
-            </View>
+          <TouchableOpacity
+            style={{height: '20%'}}
+            onPress={() => {
+              setTempName(name);
+              showNameModal(true);
+            }}>
+            <Card
+              style={{
+                alignSelf: 'center',
+                flexDirection: 'row',
+                backgroundColor: '#42EADDFF',
+                justifyContent: 'center',
+                padding: 10,
+              }}
+              elevation={10}
+              cornerRadius={20}
+              opacity={0.2}>
+              <Text numberOfLines={1} style={{marginHorizontal: 15}}>
+                {name}
+              </Text>
+
+              <Icon style={{left: 0}} size={24} color="teal" name="eraser" />
+            </Card>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={{height: '10%', marginTop: 10, elevation: 16}}
-            onPress={() => navigation.navigate('TeacherAccount')}>
-            <View
+            style={{
+              height: '10%',
+              marginTop: 10,
+              elevation: 16,
+              width: '60%',
+              alignSelf: 'center',
+              backgroundColor: '#F39C12',
+              borderTopRightRadius: 20,
+              borderBottomLeftRadius: 20,
+              justifyContent: 'center',
+              alignItems: 'center',
+              elevation: 5,
+            }}
+            onPress={() =>
+              navigation.navigate('TeacherAccount', {coordinates, address})
+            }>
+            {/* <View
               style={{
                 height: '100%',
                 width: '60%',
@@ -378,16 +670,30 @@ const index = ({navigation}) => {
                 alignItems: 'center',
                 elevation: 16,
                 marginTop: 0,
-              }}>
-              <Text style={{color: 'white', fontSize: 16}}>Teacher</Text>
-              <Text style={{color: 'white', fontSize: 16}}>Account</Text>
-            </View>
+              }}> */}
+            <Text style={{color: 'white', fontSize: 16}}>Teacher</Text>
+            <Text style={{color: 'white', fontSize: 16}}>Account</Text>
+            {/* </View> */}
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={{height: '10%', marginTop: 10, elevation: 16}}
-            onPress={() => navigation.navigate('StudentAccount')}>
-            <View
+            style={{
+              height: '10%',
+              marginTop: 10,
+              elevation: 16,
+              width: '60%',
+              alignSelf: 'center',
+              backgroundColor: '#3498DB',
+              borderTopRightRadius: 20,
+              borderBottomLeftRadius: 20,
+              justifyContent: 'center',
+              alignItems: 'center',
+              elevation: 5,
+            }}
+            onPress={() =>
+              navigation.navigate('StudentAccount', {coordinates, address})
+            }>
+            {/* <View
               style={{
                 height: '100%',
                 width: '60%',
@@ -399,10 +705,10 @@ const index = ({navigation}) => {
                 alignItems: 'center',
                 elevation: 20,
                 marginTop: 0,
-              }}>
-              <Text style={{color: 'white', fontSize: 16}}>Student</Text>
-              <Text style={{color: 'white', fontSize: 16}}>Account</Text>
-            </View>
+              }}> */}
+            <Text style={{color: 'white', fontSize: 16}}>Student</Text>
+            <Text style={{color: 'white', fontSize: 16}}>Account</Text>
+            {/* </View> */}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -412,7 +718,10 @@ const index = ({navigation}) => {
               marginHorizontal: '20%',
               width: '60%',
             }}
-            onPress={() => setShowModal(true)}>
+            onPress={() => {
+              initializeLongitudeAndLatitudeValues();
+              setShowModal(true);
+            }}>
             <Text style={{margin: '8%', textAlign: 'center'}}>
               Set Location
             </Text>
@@ -430,28 +739,29 @@ const index = ({navigation}) => {
             <View
               style={{
                 flexDirection: 'row',
-                justifyContent: 'space-between',
               }}>
-              <Text style={{marginTop: 5}}>Your location</Text>
+              <Text style={{marginTop: 5, flex: 1}} numberOfLines={2}>
+                {address}
+              </Text>
               <TouchableOpacity
                 style={{
                   backgroundColor: '#3498DB',
-                  height: 30,
-                  width: 100,
                   borderRadius: 30,
                   justifyContent: 'center',
                   alignItems: 'center',
-                }}>
-                <View>
-                  <Text
-                    style={{
-                      color: 'white',
-                      fontSize: 12,
-                      fontWeight: 'normal',
-                    }}>
-                    Add Location
-                  </Text>
-                </View>
+                }}
+                onPress={permissionHandle}>
+                <Text
+                  style={{
+                    color: 'white',
+                    fontSize: 12,
+                    fontWeight: 'normal',
+                    margin: 3,
+                    marginHorizontal: 5,
+                    fontSize: 16,
+                  }}>
+                  Add Location
+                </Text>
               </TouchableOpacity>
             </View>
             <View
@@ -459,7 +769,23 @@ const index = ({navigation}) => {
                 flex: 280,
                 backgroundColor: 'gray',
                 marginTop: '2%',
-              }}></View>
+              }}>
+              <MapboxGL.MapView
+                style={{height: '100%', width: '100%'}}
+                onPress={val => {
+                  console.log('ONPress called:', val);
+                  manageLocation({
+                    longitude: val.geometry.coordinates[0],
+                    latitude: val.geometry.coordinates[1],
+                  }); //(longitude,latitude)
+                }}>
+                <MapboxGL.Camera
+                  zoomLevel={12}
+                  centerCoordinate={coordinates}
+                />
+                <MapboxGL.PointAnnotation id="map" coordinate={coordinates} />
+              </MapboxGL.MapView>
+            </View>
           </Modal>
         </View>
         <View>
@@ -472,12 +798,13 @@ const index = ({navigation}) => {
                 setLogout(false);
                 const signout = async () => {
                   //this code is working perfectly
-                  console.log('current user: ', auth().currentUser);
+                  //console.log('current user: ', auth().currentUser);
                   await auth().signOut(); //it will remove current user present in auth, either that user was logged in through Google or Email/Password
-                  console.log('Current User Status: ', auth().currentUser);
+                  //console.log('Current User Status: ', auth().currentUser);
                   await GoogleSignin.signOut(); //If we will not signOut from there then next time, it will automatically select already selected user and will not give pop-up
-                  console.log('Signout from google also now agian login');
+                  //console.log('Signout from google also now agian login');
                 };
+                resetNotificationStates(); //re-set is necessary otherwise new user notification count will be disturbed, as notifications states are global to the root
                 signout();
                 navigation.getParent().navigate('Authentication'); //after clicking logout our cached user or auth().currentuser will be null and we will be navigated to first screen
               }}
@@ -485,11 +812,36 @@ const index = ({navigation}) => {
           </Dialog.Container>
         </View>
         <View>
-          <Dialog.Container visible={name}>
+          <Dialog.Container visible={nameModal}>
             <Dialog.Description>Enter your name</Dialog.Description>
-            <Dialog.Input></Dialog.Input>
-            <Dialog.Button label="Cancel" onPress={() => setName(false)} />
-            <Dialog.Button label="Set" onPress={() => setName(false)} />
+            <Dialog.Input
+              value={tempName}
+              onChangeText={val => setTempName(val)}></Dialog.Input>
+            <Dialog.Button
+              label="Cancel"
+              onPress={() => {
+                //will it also work on backPress button of mobile?
+                setTempName('');
+                showNameModal(false);
+              }}
+            />
+            <Dialog.Button
+              label="Set"
+              onPress={() => {
+                setName(tempName);
+                showNameModal(false);
+                firestore()
+                  .collection('teachers')
+                  .doc(getUserId())
+                  .update({name: tempName});
+                //name will also be upadted in student account due to duplication of same data
+                firestore()
+                  .collection('students')
+                  .doc(getUserId())
+                  .update({name: tempName})
+                  .then(() => setTempName(''));
+              }}
+            />
           </Dialog.Container>
         </View>
       </ScrollView>
@@ -544,4 +896,4 @@ const styles = StyleSheet.create({
   },
 });
 // #endregion
-export default index;
+export default Index;

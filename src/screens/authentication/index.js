@@ -16,7 +16,7 @@ import {
 } from 'react-native-responsive-screen';
 import auth from '@react-native-firebase/auth';
 
-const Main = ({navigation}) => {
+const Main = ({navigation, route}) => {
   //all states are defined here
   // const [state, setState] = useState({
   //   loginBtnColor: '',
@@ -26,7 +26,6 @@ const Main = ({navigation}) => {
   const [loginBtnColor, setLoginBtnColor] = useState('white');
   const [signupBtnColor, setSignupBtnColor] = useState('white');
   const [guestBtnColor, setGuestBtnColor] = useState('white');
-
   //all hooks are defined here
   useEffect(() => {
     if (auth().currentUser) {
@@ -34,10 +33,20 @@ const Main = ({navigation}) => {
       //this is verified user, its obvious that current cached user had given correct email and password
       //but there is still a loop whole, first time verified user did'nt loged in, and close app, in this case we will still allow him to navigate to Main page
       if (auth().currentUser.emailVerified) {
-        navigation.navigate('Main'); //auth().currentUser will be availabe on all pages of this app
+        console.log('user is moving to main screen catch him');
+        navigation.navigate('Main', {
+          screen: 'Home',
+          params: {
+            userName: 'Anonymous',
+            picture: './../../res/images/no-image.jpg',
+          },
+        }); //auth().currentUser will be availabe on all pages of this app
       }
     }
-    console.log('User Data from UseEffect: ', auth().currentUser);
+    console.log(
+      'User Data from UseEffect of authentication screen: ',
+      auth().currentUser,
+    );
   }, []);
   //all functions are defined here
   return (

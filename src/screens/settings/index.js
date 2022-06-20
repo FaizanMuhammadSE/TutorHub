@@ -1,7 +1,7 @@
 import React, {useState} from 'react';
 import {Text, Switch, StyleSheet, View} from 'react-native';
 
-const index = () => {
+const Index = () => {
   const [VisibilityOne, setVisibilityOne] = useState(false);
   const [VisibilityTwo, setVisibilityTwo] = useState(false);
   return (
@@ -43,4 +43,4 @@ const styles = StyleSheet.create({
     color: 'black',
   },
 });
-export default index;
+export default Index;
